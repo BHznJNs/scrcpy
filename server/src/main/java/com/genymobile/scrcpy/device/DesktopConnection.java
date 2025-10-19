@@ -7,6 +7,7 @@ import com.genymobile.scrcpy.util.StringUtils;
 import android.net.LocalServerSocket;
 import android.net.LocalSocket;
 import android.net.LocalSocketAddress;
+import java.net.DatagramSocket;
 
 import java.io.Closeable;
 import java.io.FileDescriptor;
@@ -28,14 +29,17 @@ public final class DesktopConnection implements Closeable {
     private final LocalSocket controlSocket;
     private final ControlChannel controlChannel;
 
-    private DesktopConnection(LocalSocket videoSocket, LocalSocket audioSocket, LocalSocket controlSocket) throws IOException {
+    private final DatagramSocket udpUhidSocket;
+
+    private DesktopConnection(LocalSocket videoSocket, LocalSocket audioSocket, LocalSocket controlSocket, DatagramSocket udpUhidSocket) throws IOException {
         this.videoSocket = videoSocket;
         this.audioSocket = audioSocket;
         this.controlSocket = controlSocket;
+        this.udpUhidSocket = udpUhidSocket;
 
         videoFd = videoSocket != null ? videoSocket.getFileDescriptor() : null;
         audioFd = audioSocket != null ? audioSocket.getFileDescriptor() : null;
-        controlChannel = controlSocket != null ? new ControlChannel(controlSocket) : null;
+        controlChannel = controlSocket != null ? new ControlChannel(controlSocket, udpUhidSocket) : null;
     }
 
     private static LocalSocket connect(String abstractName) throws IOException {
@@ -60,6 +64,7 @@ public final class DesktopConnection implements Closeable {
         LocalSocket videoSocket = null;
         LocalSocket audioSocket = null;
         LocalSocket controlSocket = null;
+        DatagramSocket udpUhidSocket = null;
         try {
             if (tunnelForward) {
                 try (LocalServerSocket localServerSocket = new LocalServerSocket(socketName)) {
@@ -99,6 +104,7 @@ public final class DesktopConnection implements Closeable {
                     controlSocket = connect(socketName);
                 }
             }
+            udpUhidSocket = new DatagramSocket(62123);
         } catch (IOException | RuntimeException e) {
             if (videoSocket != null) {
                 videoSocket.close();
@@ -109,10 +115,13 @@ public final class DesktopConnection implements Closeable {
             if (controlSocket != null) {
                 controlSocket.close();
             }
+            if (udpUhidSocket != null) {
+                udpUhidSocket.close();
+            }
             throw e;
         }
 
-        return new DesktopConnection(videoSocket, audioSocket, controlSocket);
+        return new DesktopConnection(videoSocket, audioSocket, controlSocket, udpUhidSocket);
     }
 
     private LocalSocket getFirstSocket() {
