@@ -5,6 +5,8 @@ import java.net.DatagramPacket;
 import java.io.DataInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import com.genymobile.scrcpy.util.Ln;
 
 public class UdpUhidMessageReader {
     private static class SeqValidator {
@@ -51,9 +53,43 @@ public class UdpUhidMessageReader {
         DatagramPacket receivePacket = new DatagramPacket(buffer, buffer.length);
         while (true) {
             socket.receive(receivePacket);
+            if (resolveClientEvents(receivePacket)) continue;
             ControlMessage msg = parse(receivePacket);
             if (msg != null) return msg;
         }
+    }
+
+    private static final byte[] PING_PAYLOAD = "ping".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] PONG_PAYLOAD = "pong".getBytes(StandardCharsets.UTF_8);
+    private Boolean resolveClientEvents(DatagramPacket packet) {
+        if (packet.getLength() != PING_PAYLOAD.length) {
+            return false;
+        }
+
+        byte[] data = packet.getData();
+        int offset = packet.getOffset();
+        Boolean isPing = false;
+        for (int i = 0; i < PING_PAYLOAD.length; ++i) {
+            if (data[offset + i] != PING_PAYLOAD[i]) {
+                isPing = false;
+                break;
+            } else {
+                isPing = true;
+            }
+        }
+        if (isPing) {
+            Ln.i("ping event from client");
+            DatagramPacket reply = new DatagramPacket(
+                    PONG_PAYLOAD, PONG_PAYLOAD.length,
+                    packet.getAddress(), packet.getPort());
+            try {
+                socket.send(reply);
+            } catch (IOException e) {
+                Ln.e("Failed to send pong", e);
+            }
+            return true;
+        }
+        return false;
     }
 
     private ControlMessage parse(DatagramPacket packet) throws IOException {

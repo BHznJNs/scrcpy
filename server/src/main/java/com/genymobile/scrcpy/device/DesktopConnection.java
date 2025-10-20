@@ -3,6 +3,7 @@ package com.genymobile.scrcpy.device;
 import com.genymobile.scrcpy.control.ControlChannel;
 import com.genymobile.scrcpy.util.IO;
 import com.genymobile.scrcpy.util.StringUtils;
+import com.genymobile.scrcpy.util.Ln;
 
 import android.net.LocalServerSocket;
 import android.net.LocalSocket;
@@ -12,6 +13,7 @@ import java.net.DatagramSocket;
 import java.io.Closeable;
 import java.io.FileDescriptor;
 import java.io.IOException;
+import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 
 public final class DesktopConnection implements Closeable {
@@ -19,6 +21,9 @@ public final class DesktopConnection implements Closeable {
     private static final int DEVICE_NAME_FIELD_LENGTH = 64;
 
     private static final String SOCKET_NAME_PREFIX = "scrcpy";
+
+    private static final int UDP_HID_DEFAULT_PORT = 62123;
+    private static final int UDP_HID_PORT_RANGE = 10;
 
     private final LocalSocket videoSocket;
     private final FileDescriptor videoFd;
@@ -104,7 +109,14 @@ public final class DesktopConnection implements Closeable {
                     controlSocket = connect(socketName);
                 }
             }
-            udpUhidSocket = new DatagramSocket(62123);
+            for (int i = UDP_HID_DEFAULT_PORT; i < UDP_HID_DEFAULT_PORT + UDP_HID_PORT_RANGE; i++) {
+                try {
+                    udpUhidSocket = new DatagramSocket(i);
+                    break;
+                } catch (SocketException e) {
+                    Ln.d("Failed to bind UDP port " + i + ", try next port");
+                }
+            }
         } catch (IOException | RuntimeException e) {
             if (videoSocket != null) {
                 videoSocket.close();
@@ -158,6 +170,9 @@ public final class DesktopConnection implements Closeable {
         }
         if (controlSocket != null) {
             controlSocket.close();
+        }
+        if (udpUhidSocket != null) {
+            udpUhidSocket.close();
         }
     }
 

@@ -211,6 +211,7 @@ public final class Server {
 
     public static void main(String... args) {
         int status = 0;
+        Ln.i("scrcpy " + BuildConfig.VERSION_NAME + " Secondary developed by BHznJNs");
         try {
             internalMain(args);
         } catch (Throwable t) {
@@ -220,6 +221,7 @@ public final class Server {
             // By default, the Java process exits when all non-daemon threads are terminated.
             // The Android SDK might start some non-daemon threads internally, preventing the scrcpy server to exit.
             // So force the process to exit explicitly.
+            Ln.i("Exit with status " + status);
             System.exit(status);
         }
     }
